@@ -1,0 +1,56 @@
+[
+    {
+        "worker_id": "EMP-001",
+        "name": "Carlos García López",
+        "department": "ventas",
+        "role": "ejecutivo_cuenta",
+        "location": "Oficina Central - Piso 3",
+        "hire_date": "2022-03-15",
+        "manager": "Ana Martínez"
+    },
+    {
+        "worker_id": "EMP-002",
+        "name": "María Fernández Ruiz",
+        "department": "ti",
+        "role": "desarrollador_senior",
+        "location": "Oficina Central - Piso 8",
+        "hire_date": "2020-07-01",
+        "manager": "Roberto Sánchez"
+    },
+    {
+        "worker_id": "EMP-003",
+        "name": "Javier Rodríguez Díaz",
+        "department": "operaciones",
+        "role": "supervisor_planta",
+        "location": "Planta Norte",
+        "hire_date": "2019-01-10",
+        "manager": "Luis Herrera"
+    },
+    {
+        "worker_id": "EMP-004",
+        "name": "Laura Morales Vega",
+        "department": "rrhh",
+        "role": "analista_rrhh",
+        "location": "Oficina Central - Piso 2",
+        "hire_date": "2023-09-01",
+        "manager": "Patricia Gómez"
+    },
+    {
+        "worker_id": "EMP-005",
+        "name": "Diego Soto Navarro",
+        "department": "finanzas",
+        "role": "contador",
+        "location": "Oficina Central - Piso 5",
+        "hire_date": "2021-02-20",
+        "manager": "Marta Ríos"
+    },
+    {
+        "worker_id": "EMP-NEW-001",
+        "name": "Sofía Castillo Peña",
+        "department": "marketing",
+        "role": "coordinadora_digital",
+        "location": "Oficina Central - Piso 4",
+        "hire_date": "2026-04-01",
+        "manager": "Carlos García López"
+    }
+]

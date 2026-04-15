@@ -1,0 +1,114 @@
+[
+    {
+        "id": "hr-001",
+        "title": "Politica de Vacaciones",
+        "content": "Todo empleado con mas de 6 meses tiene derecho a vacaciones segun antiguedad: 6m-1a: 6 dias, 1-2a: 8 dias, 2-4a: 10 dias, 4-6a: 12 dias, +6a: 14 dias. Solicitar con 15 dias de anticipacion en HR Portal (portal.empresa.com/hr > Mis Solicitudes > Vacaciones). Requiere aprobacion del supervisor directo. No acumular mas de 2 periodos. Prima vacacional: 25% del salario de los dias. Dias no usados al cierre fiscal se pierden. Emergencias familiares: se pueden adelantar con aprobacion de RRHH.",
+        "type": "policy",
+        "department": "rrhh",
+        "tags": ["vacaciones", "dias libres", "descanso", "prima vacacional", "hr portal"],
+        "version": "3.1",
+        "last_updated": "2024-01-15",
+        "approved_by": "Dir. RRHH",
+        "access_level": "all"
+    },
+    {
+        "id": "hr-002",
+        "title": "Permisos y Ausencias",
+        "content": "Permisos con goce de sueldo: matrimonio (5 dias), nacimiento/adopcion hijo (5 dias), fallecimiento familiar directo (3 dias), mudanza (1 dia). Permisos sin goce: maximo 10 dias al ano, solicitar en HR Portal con 5 dias de anticipacion. Ausencias por enfermedad: presentar incapacidad del IMSS dentro de 48h a RRHH. 3 faltas injustificadas en 30 dias = acta administrativa. Retardos: 3 retardos de +15min = 1 falta. Registrar entrada/salida en el reloj checador o app MiEmpresa.",
+        "type": "policy",
+        "department": "rrhh",
+        "tags": ["permisos", "ausencias", "faltas", "incapacidad", "retardos"],
+        "version": "2.0",
+        "last_updated": "2024-02-01",
+        "access_level": "all"
+    },
+    {
+        "id": "hr-003",
+        "title": "Nomina y Recibos de Pago",
+        "content": "Pago quincenal: dias 15 y ultimo de cada mes. Si cae en fin de semana, se paga el viernes anterior. Recibos disponibles en HR Portal > Mi Nomina > Recibos. Para aclaraciones de nomina: crear ticket en HR Portal > Soporte > Nomina o llamar a ext. 3100 (L-V 9:00-18:00). Deducciones: ISR, IMSS, Infonavit (si aplica), caja de ahorro (voluntario). Cambio de cuenta bancaria: solicitar en RRHH con estado de cuenta reciente, tiempo de proceso 1 quincena.",
+        "type": "faq",
+        "department": "rrhh",
+        "tags": ["nomina", "sueldo", "salario", "recibo", "pago", "deducciones"],
+        "version": "1.5",
+        "last_updated": "2024-03-01",
+        "access_level": "all"
+    },
+    {
+        "id": "it-001",
+        "title": "Reseteo de Contrasena",
+        "content": "Opcion 1 (autoservicio): portal.empresa.com/reset > ingresar numero de empleado > codigo al celular registrado > crear nueva contrasena (min 12 caracteres, 1 mayuscula, 1 numero, 1 simbolo). Se sincroniza en 15 min. Opcion 2: llamar Mesa de Ayuda ext. 5000 (L-V 7:00-22:00, S 8:00-14:00). Opcion 3 (fuera de horario): email soporte.urgente@empresa.com. La contrasena expira cada 90 dias. No reutilizar las ultimas 5 contrasenas. Cuenta se bloquea tras 5 intentos fallidos (desbloqueo automatico en 30 min o llamar ext. 5000).",
+        "type": "sop",
+        "department": "ti",
+        "tags": ["contrasena", "password", "acceso", "reset", "cuenta bloqueada"],
+        "version": "2.0",
+        "last_updated": "2024-03-01",
+        "access_level": "all"
+    },
+    {
+        "id": "it-002",
+        "title": "Solicitud de Acceso a Sistemas",
+        "content": "Solicitar en ServiceNow (servicenow.empresa.com > Catalogo > Accesos). Tu jefe directo inicia la solicitud indicando: sistema, tipo de acceso (lectura/escritura/admin), justificacion. Aprobaciones: estandar = jefe + dueno del sistema. Admin = + Seguridad IT. Tiempos: estandar 24-48h habiles, admin 3-5 dias. Accesos temporales: max 90 dias, renovacion requiere nueva solicitud. Al cambiar de area: accesos anteriores se revocan automaticamente en 5 dias, nuevos accesos segun nuevo rol.",
+        "type": "sop",
+        "department": "ti",
+        "tags": ["acceso", "sistemas", "permisos", "servicenow", "admin"],
+        "version": "1.5",
+        "last_updated": "2024-02-20",
+        "access_level": "all"
+    },
+    {
+        "id": "it-003",
+        "title": "Conexion VPN y Trabajo Remoto",
+        "content": "VPN corporativa: descargar FortiClient desde portal.empresa.com/vpn. Configuracion: servidor=vpn.empresa.com, usuario=numero de empleado, contrasena=la misma del correo. Conectar antes de acceder a sistemas internos. Problemas comunes: 1) Conexion rechazada: verificar que tu cuenta VPN este activa (solicitar en ServiceNow si es primera vez). 2) Timeout: cambiar a red sin restricciones (no usar WiFi publico). 3) Lento: cerrar apps de streaming. Soporte: ext. 5000 o chat en portal.empresa.com/soporte.",
+        "type": "manual",
+        "department": "ti",
+        "tags": ["vpn", "remoto", "trabajo remoto", "conexion", "forticlient"],
+        "version": "3.0",
+        "last_updated": "2024-01-10",
+        "access_level": "all"
+    },
+    {
+        "id": "fin-001",
+        "title": "Reembolso de Gastos",
+        "content": "Solicitar dentro de 30 dias del gasto en SAP Concur (concur.empresa.com). Adjuntar factura/comprobante fiscal (PDF o foto legible). Categorizar correctamente. Aprobaciones: hasta $5,000: jefe directo. $5,001-$20,000: director. +$20,000: VP + Finanzas. Pago en siguiente quincena tras aprobacion. NO reembolsable: alcohol, entretenimiento personal, multas. Viaticos internacionales: requieren preaprobacion. Taxis/transporte: usar app corporativa (codigo en HR Portal). Dudas: finanzas@empresa.com o ext. 4000.",
+        "type": "sop",
+        "department": "finanzas",
+        "tags": ["reembolso", "gastos", "viaticos", "factura", "concur"],
+        "version": "4.0",
+        "last_updated": "2024-01-30",
+        "access_level": "all"
+    },
+    {
+        "id": "fin-002",
+        "title": "Politica de Viajes Corporativos",
+        "content": "Solicitar con minimo 10 dias de anticipacion en SAP Concur > Viajes. Vuelos: clase economica (nacional), economica premium (+4h internacional). Hoteles: maximo $2,500/noche nacional, $200 USD/noche internacional. Alimentos: maximo $800/dia nacional, $100 USD/dia internacional. Requiere aprobacion de director antes de reservar. Agencia de viajes corporativa: viajes@empresa.com o ext. 4200. Cambios/cancelaciones: notificar con 48h de anticipacion. Seguro de viajero incluido automaticamente al aprobar el viaje.",
+        "type": "policy",
+        "department": "finanzas",
+        "tags": ["viajes", "vuelos", "hotel", "viaticos", "internacional"],
+        "version": "2.5",
+        "last_updated": "2024-02-15",
+        "access_level": "all"
+    },
+    {
+        "id": "safety-001",
+        "title": "Protocolo de Evacuacion",
+        "content": "AL ESCUCHAR LA ALARMA: 1) Manten calma. 2) Deja todo inmediatamente. 3) NO uses elevadores. 4) Sigue flechas verdes de evacuacion. 5) Dirigete al punto de reunion de tu piso: Pisos 1-5: Estacionamiento Norte, Pisos 6-10: Plaza Principal, Pisos 11+: Parque Sur. 6) Reportate con tu brigadista. 7) NO regreses hasta indicacion oficial. Brigadistas: directorio en cada elevador y cocina de piso. Emergencias: ext. 911 interna, celular 55-1234-5678. Simulacros: primer miercoles de cada mes a las 11:00. Extintores: cada 20m en pasillos, capacitacion obligatoria anual.",
+        "type": "sop",
+        "department": "seguridad",
+        "tags": ["evacuacion", "emergencia", "incendio", "sismo", "brigadista", "alarma"],
+        "version": "5.0",
+        "last_updated": "2024-06-01",
+        "approved_by": "Dir. Seguridad",
+        "access_level": "all"
+    },
+    {
+        "id": "onb-001",
+        "title": "Guia de Bienvenida - Primeros Dias",
+        "content": "Bienvenido/a! Tus primeros pasos: 1) Credencial: Seguridad PB, traer INE. 2) Equipo de computo: recoger en IT PB-3 con tu credencial. 3) Cuentas: email y sistemas se activan en 24h, tu usuario es tu numero de empleado. 4) HR Portal (portal.empresa.com/hr): registra datos bancarios, contacto de emergencia, RFC. 5) Cursos obligatorios en los primeros 30 dias: Codigo de Etica, Seguridad de la Informacion, Prevencion de Riesgos (en plataforma e-learning portal.empresa.com/cursos). 6) Tu buddy/padrino: te contactara el primer dia. 7) Comedor: PB, horario 12:30-15:00, subsidio 80%. 8) Estacionamiento: solicitar en Administracion ext. 2000. Dudas: tu buddy, tu jefe o RRHH ext. 3000.",
+        "type": "manual",
+        "department": "rrhh",
+        "tags": ["nuevo empleado", "bienvenida", "induccion", "onboarding", "primer dia"],
+        "version": "6.0",
+        "last_updated": "2024-03-15",
+        "access_level": "all"
+    }
+]
