@@ -1,53 +1,11 @@
-# Python
-__pycache__/
-*.py[cod]
-*$py.class
-*.so
-*.egg-info/
-dist/
-build/
-eggs/
-*.egg
-
-# Virtual environments
-.venv/
-venv/
-env/
-
-# IDE
-.vscode/
-.idea/
-*.swp
-*.swo
-
-# Environment
 .env
-
-# Database
-*.db
-*.sqlite3
-
-# Coverage
-htmlcov/
-.coverage
-coverage.xml
-*.cover
-
-# Pytest
-.pytest_cache/
-
-# Mypy
-.mypy_cache/
-
-# Ruff
-.ruff_cache/
-
-# Vector store data
-data/vectorstore/
-
-# OS files
+__pycache__
+*.pyc
+.venv/
+node_modules/
 .DS_Store
-Thumbs.db
-
-# Docker volumes
-docker/data/
+*.log
+mentor.db
+data/
+chroma_data/
+postgres_data/

@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>CarpinteroAI - Asistente Técnico</title>
+    <link rel="manifest" href="/manifest.json">
+    <meta name="theme-color" content="#1a1a2e">
+    <style>
+        :root {
+            --bg: #1a1a2e;
+            --bg-light: #16213e;
+            --bg-card: #0f3460;
+            --primary: #e67e22;
+            --primary-dark: #d35400;
+            --text: #e1e1e1;
+            --text-muted: #94a3b8;
+            --danger: #e74c3c;
+            --border-radius: 12px;
+        }
+
+        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+        body { 
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background: var(--bg); color: var(--text);
+            margin: 0; padding: 0; height: 100vh; display: flex; flex-direction: column;
+            overflow: hidden;
+        }
+
+        /* Header */
+        .header {
+            padding: 12px 16px; background: var(--bg-light);
+            display: flex; justify-content: space-between; align-items: center;
+            border-bottom: 2px solid var(--primary); z-index: 10;
+        }
+        .header h1 { margin: 0; font-size: 1.2rem; display: flex; align-items: center; gap: 8px; }
+        .role-selector {
+            background: var(--bg-card); color: white; border: 1px solid var(--primary);
+            padding: 4px 8px; border-radius: 6px; font-size: 0.9rem;
+        }
+
+        /* Quick Actions */
+        .quick-actions {
+            display: flex; gap: 8px; padding: 12px; overflow-x: auto;
+            background: var(--bg); scrollbar-width: none;
+        }
+        .quick-actions::-webkit-scrollbar { display: none; }
+        .quick-btn {
+            background: var(--bg-card); border: 1px solid rgba(255,255,255,0.1);
+            color: white; padding: 8px 14px; border-radius: 20px;
+            white-space: nowrap; font-size: 0.85rem; cursor: pointer;
+            display: flex; align-items: center; gap: 6px;
+        }
+        .quick-btn:active { background: var(--primary); }
+
+        /* Chat Area */
+        .chat-area {
+            flex: 1; overflow-y: auto; padding: 16px;
+            display: flex; flex-direction: column; gap: 16px;
+            background-image: radial-gradient(circle at 50% 50%, #16213e 0%, #1a1a2e 100%);
+        }
+        .message { max-width: 85%; padding: 12px 16px; border-radius: var(--border-radius); line-height: 1.5; font-size: 1rem; position: relative; }
+        .user { align-self: flex-end; background: var(--primary); color: white; border-bottom-right-radius: 2px; }
+        .assistant { align-self: flex-start; background: var(--bg-card); border-bottom-left-radius: 2px; }
+        
+        .intent-badge {
+            display: inline-block; background: rgba(0,0,0,0.2); padding: 2px 8px;
+            border-radius: 8px; font-size: 0.7rem; margin-bottom: 6px; color: var(--primary); font-weight: bold;
+        }
+        .sources { font-size: 0.75rem; color: var(--text-muted); margin-top: 8px; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 4px; }
+        
+        /* Input Area */
+        .input-area {
+            background: var(--bg-light); padding: 12px; display: flex; gap: 10px; align-items: flex-end;
+            border-top: 1px solid rgba(255,255,255,0.1);
+        }
+        textarea {
+            flex: 1; background: var(--bg-card); border: 1px solid rgba(255,255,255,0.2);
+            color: white; padding: 12px; border-radius: 20px; font-size: 1rem;
+            resize: none; max-height: 150px; font-family: inherit;
+        }
+        textarea:focus { outline: none; border-color: var(--primary); }
+        
+        .circle-btn {
+            width: 48px; height: 48px; border-radius: 50%; border: none;
+            display: flex; align-items: center; justify-content: center;
+            cursor: pointer; font-size: 1.2rem; transition: all 0.2s;
+        }
+        .btn-send { background: var(--primary); color: white; }
+        .btn-voice { background: var(--bg-card); color: white; border: 1px solid rgba(255,255,255,0.2); }
+        .btn-voice.recording { background: var(--danger); animation: pulse 1.5s infinite; }
+
+        @keyframes pulse {
+            0% { box-shadow: 0 0 0 0 rgba(231, 76, 60, 0.7); }
+            70% { box-shadow: 0 0 0 15px rgba(231, 76, 60, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(231, 76, 60, 0); }
+        }
+
+        /* Markdown Styles */
+        .assistant h2, .assistant h3 { color: var(--primary); margin: 8px 0; }
+        .assistant ul, .assistant ol { padding-left: 20px; }
+        .assistant code { background: rgba(0,0,0,0.3); padding: 2px 4px; border-radius: 4px; }
+
+        #typing { display: none; margin-bottom: 10px; color: var(--text-muted); font-size: 0.8rem; font-style: italic; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🪚 CarpinteroAI</h1>
+        <select class="role-selector" id="roleSelector">
+            <option value="general">General</option>
+            <option value="carpintero_taller">Taller</option>
+            <option value="instalador_puertas">Puertas</option>
+            <option value="instalador_parquet">Parquet</option>
+            <option value="encargado">Encargado</option>
+        </select>
+    </div>
+
+    <div class="quick-actions" id="quickActions">
+        <button class="quick-btn" data-msg="¿Cómo instalo un premarco correctamente?">🚪 Premarco</button>
+        <button class="quick-btn" data-msg="Tengo un problema con una puerta que roza">⚠️ Puerta roza</button>
+        <button class="quick-btn" data-msg="¿Qué juntas de dilatación dejo en el parquet?">🪵 Parquet</button>
+        <button class="quick-btn" data-msg="¿Cómo corto un inglete de rodapié?">📐 Inglete</button>
+        <button class="quick-btn" data-msg="El hueco es más pequeño que el premarco">📏 Medida</button>
+        <button class="quick-btn" data-msg="Necesito reportar una incidencia">📋 Incidencia</button>
+    </div>
+
+    <div class="chat-area" id="chatArea">
+        <div class="message assistant">
+            ¡Hola! Soy tu asistente **CarpinteroAI**. <br>
+            Selecciona tu rol arriba y pregúntame cualquier duda técnica de la obra.
+        </div>
+    </div>
+    
+    <div id="typing" style="padding: 0 16px;">CarpinteroAI está pensando...</div>
+
+    <div class="input-area">
+        <textarea id="messageInput" rows="1" placeholder="Tu consulta..."></textarea>
+        <button class="circle-btn btn-voice" id="voiceBtn">🎤</button>
+        <button class="circle-btn btn-send" id="sendBtn">➤</button>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script>
+        const state = {
+            sessionId: null,
+            userId: 'u_' + Math.random().toString(36).substr(2, 5),
+            isRecording: false,
+            mediaRecorder: null,
+            audioChunks: []
+        };
+
+        const elements = {
+            chatArea: document.getElementById('chatArea'),
+            messageInput: document.getElementById('messageInput'),
+            sendBtn: document.getElementById('sendBtn'),
+            voiceBtn: document.getElementById('voiceBtn'),
+            roleSelector: document.getElementById('roleSelector'),
+            quickActions: document.getElementById('quickActions'),
+            typing: document.getElementById('typing')
+        };
+
+        // Enviar Mensaje
+        async function sendMessage(text) {
+            const msg = text || elements.messageInput.value.trim();
+            if (!msg) return;
+
+            addMessage('user', msg);
+            elements.messageInput.value = '';
+            elements.messageInput.style.height = 'auto';
+            elements.typing.style.display = 'block';
+            elements.chatArea.scrollTop = elements.chatArea.scrollHeight;
+
+            try {
+                const response = await fetch('/api/chat/', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        message: msg,
+                        session_id: state.sessionId,
+                        user_id: state.userId,
+                        user_role: elements.roleSelector.value,
+                        location: 'obra'
+                    })
+                });
+                
+                const data = await response.json();
+                state.sessionId = data.session_id;
+                elements.typing.style.display = 'none';
+                addMessage('assistant', data.response, data.intent, data.sources);
+            } catch (err) {
+                elements.typing.style.display = 'none';
+                addMessage('assistant', '❌ Error de conexión al servidor.');
+            }
+        }
+
+        function addMessage(role, content, intent, sources) {
+            const div = document.createElement('div');
+            div.className = `message ${role}`;
+            
+            let html = '';
+            if (role === 'assistant') {
+                if (intent) html += `<div class="intent-badge">${intent.toUpperCase().replace('_', ' ')}</div>`;
+                html += marked.parse(content);
+                if (sources && sources.length > 0) {
+                    html += `<div class="sources">📚 Ref: ${sources[0].collection}</div>`;
+                }
+            } else {
+                html = content;
+            }
+            
+            div.innerHTML = html;
+            elements.chatArea.appendChild(div);
+            elements.chatArea.scrollTop = elements.chatArea.scrollHeight;
+        }
+
+        // Voz
+        async function toggleVoice() {
+            if (state.isRecording) {
+                state.mediaRecorder.stop();
+                elements.voiceBtn.classList.remove('recording');
+                state.isRecording = false;
+            } else {
+                try {
+                    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                    state.mediaRecorder = new MediaRecorder(stream);
+                    state.audioChunks = [];
+                    
+                    state.mediaRecorder.ondataavailable = e => state.audioChunks.push(e.data);
+                    state.mediaRecorder.onstop = async () => {
+                        const audioBlob = new Blob(state.audioChunks, { type: 'audio/wav' });
+                        const formData = new FormData();
+                        formData.append('audio', audioBlob, 'rec.wav');
+                        formData.append('user_role', elements.roleSelector.value);
+                        formData.append('session_id', state.sessionId || '');
+                        
+                        elements.typing.style.display = 'block';
+                        const res = await fetch('/api/voice/chat-voice', { method: 'POST', body: formData });
+                        const data = await res.json();
+                        state.sessionId = data.session_id;
+                        addMessage('user', `🎤 ${data.transcription}`);
+                        elements.typing.style.display = 'none';
+                        addMessage('assistant', data.response, data.intent);
+                    };
+                    
+                    state.mediaRecorder.start();
+                    elements.voiceBtn.classList.add('recording');
+                    state.isRecording = true;
+                } catch (err) {
+                    alert('Acceso al micro denegado');
+                }
+            }
+        }
+
+        // Eventos
+        elements.sendBtn.onclick = () => sendMessage();
+        elements.messageInput.onkeydown = e => (e.key === 'Enter' && !e.shiftKey) ? (e.preventDefault(), sendMessage()) : null;
+        elements.voiceBtn.onclick = toggleVoice;
+        elements.quickActions.onclick = e => {
+            const btn = e.target.closest('.quick-btn');
+            if (btn) sendMessage(btn.dataset.msg);
+        };
+
+        // Auto-resize
+        elements.messageInput.oninput = function() {
+            this.style.height = 'auto';
+            this.style.height = this.scrollHeight + 'px';
+        };
+    </script>
+</body>
+</html>

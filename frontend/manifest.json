@@ -1,0 +1,13 @@
+{
+    "name": "CarpinteroAI",
+    "short_name": "CarpinteroAI",
+    "description": "Asistente técnico experto para carpinteros",
+    "start_url": "/",
+    "display": "standalone",
+    "background_color": "#1a1a2e",
+    "theme_color": "#1a1a2e",
+    "orientation": "portrait",
+    "icons": [
+        { "src": "https://cdn-icons-png.flaticon.com/512/1000/1000305.png", "sizes": "512x512", "type": "image/png" }
+    ]
+}

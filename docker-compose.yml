@@ -1,0 +1,59 @@
+services:
+  # LLM Local (Ollama)
+  ollama:
+    image: ollama/ollama:latest
+    container_name: carpintero-ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    restart: unless-stopped
+    # Si tienes GPU NVIDIA, descomenta esto:
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: all
+    #           capabilities: [gpu]
+
+  # Base de Datos Vectorial (ChromaDB)
+  chromadb:
+    image: chromadb/chroma:latest
+    container_name: carpintero-chromadb
+    ports:
+      - "8100:8000"
+    volumes:
+      - chroma_data:/chroma/chroma
+    environment:
+      - IS_PERSISTENT=TRUE
+      - ANONYMIZED_TELEMETRY=FALSE
+    restart: unless-stopped
+
+  # API Principal (FastAPI)
+  api:
+    build:
+      context: .
+      dockerfile: infra/docker/Dockerfile.api
+    container_name: carpintero-api
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./core:/app/core
+      - ./api:/app/api
+      - ./frontend:/app/frontend
+      - ./knowledge_base:/app/knowledge_base
+      - ./scripts:/app/scripts
+    env_file: .env
+    environment:
+      - OLLAMA_BASE_URL=http://ollama:11434
+      - CHROMA_HOST=chromadb
+      - CHROMA_PORT=8000
+    depends_on:
+      - ollama
+      - chromadb
+    restart: unless-stopped
+
+volumes:
+  ollama_data:
+  chroma_data:

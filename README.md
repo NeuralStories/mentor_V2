@@ -1,150 +1,46 @@
-# MENTOR - Agente Empresarial de Consultas y Guiado
+# 🪚 CarpinteroAI V2
 
-Sistema de IA para resolver consultas de trabajadores sobre politicas, procesos, sistemas y procedimientos corporativos.
+Asistente inteligente experto para operarios de carpintería e instalación. Utiliza una arquitectura RAG dinámica con aprendizaje continuo basado en conversaciones reales.
 
-> [!TIP]
-> **Consulta el [Manual Completo de Usuario (MANUAL_MENTOR.md)](MANUAL_MENTOR.md)** para una guía detallada sobre cómo configurar cuentas, instalar y operar el sistema.
+## 🚀 Arquitectura V2
+- **Core**: LangChain + Ollama (LLM Local).
+- **RAG**: ChromaDB para búsqueda semántica técnica.
+- **Memoria**: Supabase para persistencia de diálogos e incidencias.
+- **Aprendizaje**: Pipeline automático de extracción de conocimiento técnico.
+- **Voz**: Whisper local para entrada de audio en obra.
+- **Frontend**: PWA ultra-ligera en Vanilla JS.
 
-## Caracteristicas
+## 🛠️ Requisitos previos
+1. **Docker** y Docker Compose.
+2. **Supabase**: Proyecto creado en [supabase.com](https://supabase.com).
+3. **Hardware**: Mínimo 8GB RAM (16GB recomendado para el LLM).
 
-- Clasificacion inteligente de consultas (RRHH, IT, Seguridad, Finanzas, etc.)
-- Base de conocimiento con politicas, SOPs y manuales
-- 6 estrategias de respuesta adaptativas
-- Escalamiento automatico a equipos humanos con tickets
-- Deteccion y redaccion de datos sensibles (SSN, RFC, emails)
-- Analiticas de uso y satisfaccion
-- Cache inteligente de respuestas frecuentes
-- Guia especial para empleados nuevos (onboarding)
-- Autenticacion JWT + API Keys
-- Middleware de logging y rate limiting
-- Integraciones: Slack, Microsoft Teams, Webhooks
+## 📥 Instalación Rápida
 
-## Arquitectura
+1. **Configurar Base de Datos**:
+   - Crea un proyecto en Supabase.
+   - Ejecuta el contenido de `scripts/setup_supabase.py` en el editor SQL de Supabase.
+   - Copia tus credenciales al archivo `.env` (usa `.env.example` como base).
 
-```
-Trabaja -> Clasificador -> Router de Area -> KB Search -> Estrategia -> LLM -> Respuesta
-                                                              |
-                                                    Escalamiento (si necesario)
-```
+2. **Arrancar Servicios**:
+   ```bash
+   make build
+   make up
+   ```
 
-## Inicio Rapido
+3. **Inyectar Conocimiento Inicial**:
+   ```bash
+   make seed
+   ```
 
-```bash
-# 1. Instalar dependencias
-pip install -e ".[dev,test]"
+4. **Acceso**:
+   - Abre [http://localhost:8000](http://localhost:8000) en tu móvil o PC.
 
-# 2. Configurar entorno
-cp .env.example .env
-# Editar .env con tus API keys
+## 🧠 Sistema de Aprendizaje
+El sistema analiza cada respuesta. Si detecta una "perla de sabiduría" técnica (ej. una solución a un descuadre), la guarda en Supabase marcada como `pending`. Un encargado puede validar estas entradas desde el panel de administración (/api/knowledge/pending) para que pasen a formar parte del cerebro colectivo (RAG).
 
-# 3. Ejecutar
-make run
-# -> http://localhost:8000/api/v1/docs
-
-# 4. Tests
-make test
-```
-
-## API Endpoints
-
-| Metodo | Endpoint | Descripcion |
-|--------|----------|-------------|
-| POST | /api/v1/query | Enviar consulta al agente |
-| POST | /api/v1/workers/register | Registrar trabajador |
-| POST | /api/v1/feedback | Enviar feedback de satisfaccion |
-| GET | /api/v1/analytics | Ver analiticas generales |
-| GET | /api/v1/tickets/open | Ver tickets de escalamiento abiertos |
-| GET | /api/v1/kb/stats | Estadisticas de la base de conocimiento |
-| GET | /api/v1/cache/stats | Estadisticas del cache |
-| DELETE | /api/v1/cache | Limpiar cache |
-| DELETE | /api/v1/session/{id} | Limpiar sesion de conversacion |
-| GET | /health | Health check |
-| GET | /metrics | Metricas Prometheus |
-
-## Docker
-
-```bash
-# Levantar todos los servicios (API + Redis + Postgres + Prometheus)
-make docker-up
-
-# Detener
-make docker-down
-```
-
-## Estructura del Proyecto
-
-```
-Mentor/
- src/
-    main.py                    # FastAPI app entry point
-    core/
-       engine.py              # Motor principal (orquestador)
-       query_classifier.py    # Clasificador de consultas
-       knowledge_base.py      # Base de conocimiento
-       worker_context.py      # Perfil del trabajador
-       response_strategies.py # 6 estrategias de respuesta
-       escalation.py          # Sistema de escalamiento
-       memory.py              # Memoria conversacional
-       llm_providers.py       # OpenAI, Anthropic, Ollama
-    api/
-       routes.py              # Endpoints principales
-       schemas.py             # Schemas Pydantic
-       auth.py                # JWT + API keys
-       middleware.py           # Logging y rate limiting
-       metrics_endpoint.py    # Prometheus /metrics
-    db/
-       database.py            # SQLAlchemy async setup
-       models.py              # Modelos de DB
-       repositories.py        # CRUD operations
-    services/
-       cache_service.py       # Cache inteligente Redis/local
-       document_ingestion.py  # Ingestion de documentos
-       rag_service.py         # RAG con ChromaDB
-       metrics.py             # Prometheus metrics
-    integrations/
-       slack.py               # Notificaciones Slack
-       teams.py               # Notificaciones Teams
-       webhooks.py            # Webhooks genericos
-    utils/
-       config.py              # Pydantic settings
-       logger.py              # Structured logging
- tests/
-    conftest.py               # Fixtures + MockLLM
-    test_api.py               # Tests de API
-    unit/
-       test_query_classifier.py
-       test_knowledge_base.py
-       test_worker_profile.py
-       test_engine.py
-       test_escalation.py
-       test_cache.py
-       test_memory.py
- data/
-    knowledge_base.json       # KB inicial
-    sample_workers.json       # Trabajadores de ejemplo
- docker/
-    Dockerfile
-    docker-compose.yml
-    prometheus.yml
- .github/workflows/
-    ci.yml                    # CI pipeline
-    cd.yml                    # CD pipeline
- .env.example
- pyproject.toml
- Makefile
- README.md
-```
-
-## Variables de Entorno
-
-Ver `.env.example` para la lista completa. Las principales:
-
-- `LLM_PROVIDER`: openai, anthropic, ollama
-- `OPENAI_API_KEY`: Tu clave de API de OpenAI
-- `DATABASE_URL`: URI de conexion a base de datos
-- `REDIS_URL`: URI de conexion a Redis
-- `JWT_SECRET`: Secreto para tokens JWT
-
-## Licencia
-
-Uso interno empresarial.
+## 📋 Endpoints Principales
+- `POST /api/chat/`: Chat de texto.
+- `POST /api/voice/chat-voice`: Chat de voz completo.
+- `GET /api/knowledge/pending`: Listado de aprendizajes pendientes.
+- `POST /api/knowledge/validate/{id}`: Aprobar nuevo conocimiento.
