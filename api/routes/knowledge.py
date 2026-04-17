@@ -1,49 +1,66 @@
 """
-Rutas de gestión del conocimiento para Mentor by EgeAI.
-Endpoints para indexar, buscar y gestionar la base de conocimientos.
-Incluye zona de ingesta para subida y procesamiento de documentos.
+Rutas de gestión del conocimiento e ingesta documental.
 """
-from fastapi import APIRouter, HTTPException, BackgroundTasks, UploadFile, File, Form
-from pydantic import BaseModel
-from typing import Dict, Any, List, Optional
-from pathlib import Path
-import shutil
-import uuid
+import hashlib
 import logging
-from datetime import datetime
+from pathlib import Path
+from typing import Any, Dict, List, Optional
 
+from fastapi import APIRouter, BackgroundTasks, File, Form, HTTPException, UploadFile
+from pydantic import BaseModel
+
+from core.config import settings
+from core.ingestion import IngestionStatus, get_store
+from core.memory.learning_pipeline import LearningPipeline
 from core.rag.indexer import KnowledgeIndexer
 from core.rag.retriever import RAGRetriever
-from core.memory.learning_pipeline import LearningPipeline
 from core.tools.document_parser import DocumentParser
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
-# Instancias de servicios
 indexer = KnowledgeIndexer()
 retriever = RAGRetriever()
 learning = LearningPipeline()
 
-
-def _upload_subdirs() -> list[str]:
-    return ["pdf", "docx", "txt", "md", "markdown", "processed", "errors"]
+VALID_COLLECTIONS = {
+    "procedimientos",
+    "materiales",
+    "problemas_soluciones",
+    "incidencias",
+    "aprendido",
+}
 
 
 def _storage_dir_for_format(file_format: str) -> str:
     return "md" if file_format == "markdown" else file_format
 
 
+def _validate_collection(collection: str) -> None:
+    if collection not in VALID_COLLECTIONS:
+        raise HTTPException(status_code=400, detail=f"Colección '{collection}' no válida")
+
+
+def _validate_size(size_bytes: int) -> None:
+    max_bytes = settings.MAX_UPLOAD_SIZE_MB * 1024 * 1024
+    if size_bytes > max_bytes:
+        raise HTTPException(
+            status_code=413,
+            detail=(
+                f"Archivo demasiado grande ({size_bytes / 1_048_576:.1f} MB > "
+                f"{settings.MAX_UPLOAD_SIZE_MB} MB)"
+            ),
+        )
+
+
 class IndexRequest(BaseModel):
-    """Modelo para solicitud de indexación."""
     content: str
     metadata: Optional[Dict[str, Any]] = None
     collection: str = "aprendido"
 
 
 class SearchRequest(BaseModel):
-    """Modelo para solicitud de búsqueda."""
     query: str
     collections: Optional[List[str]] = None
     top_k: int = 5
@@ -51,94 +68,47 @@ class SearchRequest(BaseModel):
 
 
 class KnowledgeResponse(BaseModel):
-    """Modelo para respuesta de conocimiento."""
     results: List[Dict[str, Any]]
     total_found: int
     query: str
 
 
 class UploadResponse(BaseModel):
-    """Modelo para respuesta de subida de archivo."""
     file_id: str
     file_name: str
     file_format: str
     file_size: int
     status: str
     message: str
-    extracted_text_length: Optional[int] = None
-    chunks_created: Optional[int] = None
-
-
-class DocumentInfo(BaseModel):
-    """Modelo para información de documento."""
-    file_id: str
-    file_name: str
-    file_format: str
-    file_size: int
-    upload_date: str
-    status: str
-    word_count: Optional[int] = None
-    char_count: Optional[int] = None
-    pages: Optional[int] = None
-    ocr_used: Optional[bool] = None
+    sha256: Optional[str] = None
 
 
 class ProcessDocumentRequest(BaseModel):
-    """Modelo para solicitud de procesamiento de documento."""
-    file_id: str
     collection: str = "procedimientos"
-    chunk_size: Optional[int] = None
-    chunk_overlap: Optional[int] = None
 
 
 @router.post("/index")
-async def index_knowledge(request: IndexRequest, background_tasks: BackgroundTasks):
-    """
-    Indexa nuevo conocimiento en la base vectorial.
-    """
-    try:
-        if request.collection == "aprendido":
-            # Indexar conocimiento aprendido
-            indexer.index_learned_knowledge(
-                content=request.content,
-                metadata=request.metadata or {}
-            )
-        elif request.collection in ["procedimientos", "materiales", "problemas_soluciones"]:
-            # Para otras colecciones, requeriría archivos markdown
-            # Por ahora, solo aprendido
-            raise HTTPException(
-                status_code=400,
-                detail=f"Indexación directa solo disponible para colección 'aprendido'. Para otras colecciones, use archivos markdown."
-            )
-        else:
-            raise HTTPException(
-                status_code=400,
-                detail=f"Colección '{request.collection}' no válida"
-            )
-
-        logger.info(f"Conocimiento indexado en colección: {request.collection}")
-
-        return {
-            "status": "indexed",
-            "collection": request.collection,
-            "message": "Conocimiento indexado correctamente"
-        }
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Error indexando conocimiento: {e}")
+async def index_knowledge(request: IndexRequest):
+    _validate_collection(request.collection)
+    if request.collection != "aprendido":
         raise HTTPException(
-            status_code=500,
-            detail="Error al indexar el conocimiento"
+            status_code=400,
+            detail="Indexación directa solo disponible para 'aprendido'. Para el resto, usa /upload.",
         )
+
+    try:
+        indexer.index_learned_knowledge(
+            content=request.content,
+            metadata=request.metadata or {},
+        )
+        return {"status": "indexed", "collection": request.collection}
+    except Exception as exc:
+        logger.exception("Error indexando conocimiento")
+        raise HTTPException(status_code=500, detail=f"Error al indexar: {exc}") from exc
 
 
 @router.post("/search", response_model=KnowledgeResponse)
 async def search_knowledge(request: SearchRequest):
-    """
-    Busca conocimiento relevante en la base vectorial.
-    """
     try:
         results = retriever.search(
             query=request.query,
@@ -146,95 +116,55 @@ async def search_knowledge(request: SearchRequest):
             top_k=request.top_k,
             min_similarity=request.min_similarity,
         )
-
-        response = KnowledgeResponse(
+        return KnowledgeResponse(
             results=results,
             total_found=len(results),
-            query=request.query
+            query=request.query,
         )
-
-        logger.info(f"Búsqueda completada: {len(results)} resultados para '{request.query}'")
-
-        return response
-
-    except Exception as e:
-        logger.error(f"Error en búsqueda: {e}")
-        raise HTTPException(
-            status_code=500,
-            detail="Error al realizar la búsqueda"
-        )
+    except Exception as exc:
+        logger.exception("Error en búsqueda")
+        raise HTTPException(status_code=500, detail="Error al realizar la búsqueda") from exc
 
 
 @router.post("/index-incident")
 async def index_incident(
     description: str,
-    solution: str = None,
+    solution: str | None = None,
     category: str = "general",
-    metadata: Optional[Dict[str, Any]] = None
+    metadata: Optional[Dict[str, Any]] = None,
 ):
-    """
-    Indexa una incidencia resuelta para futuras consultas.
-    """
     try:
-        enriched_metadata = metadata or {}
-        enriched_metadata.update({
+        enriched_metadata = (metadata or {}) | {
             "category": category,
             "indexed_from": "api",
-        })
-
+        }
         indexer.index_incident(
             description=description,
             solution=solution,
-            metadata=enriched_metadata
+            metadata=enriched_metadata,
         )
-
-        return {
-            "status": "indexed",
-            "type": "incident",
-            "message": "Incidencia indexada correctamente"
-        }
-
-    except Exception as e:
-        logger.error(f"Error indexando incidencia: {e}")
-        raise HTTPException(
-            status_code=500,
-            detail="Error al indexar la incidencia"
-        )
+        return {"status": "indexed", "type": "incident"}
+    except Exception as exc:
+        logger.exception("Error indexando incidencia")
+        raise HTTPException(status_code=500, detail="Error al indexar la incidencia") from exc
 
 
 @router.get("/stats")
 async def get_knowledge_stats():
-    """
-    Obtiene estadísticas del sistema de conocimiento.
-    """
     try:
-        # Estadísticas de aprendizaje
-        learning_stats = learning.get_learning_stats()
-
-        # Información básica de colecciones (simplificada)
-        collections_info = {
-            "total_collections": 5,  # procedimientos, materiales, problemas_soluciones, incidencias, aprendido
-            "collections": [
-                "procedimientos",
-                "materiales", 
-                "problemas_soluciones",
-                "incidencias",
-                "aprendido"
-            ]
-        }
-
+        store = get_store()
         return {
-            "learning_stats": learning_stats,
-            "collections": collections_info,
-            "status": "active"
+            "learning_stats": learning.get_learning_stats(),
+            "collections": {
+                "total_collections": len(VALID_COLLECTIONS),
+                "collections": sorted(VALID_COLLECTIONS),
+            },
+            "ingestion": store.count_by_status(),
+            "status": "active",
         }
-
-    except Exception as e:
-        logger.error(f"Error obteniendo estadísticas: {e}")
-        raise HTTPException(
-            status_code=500,
-            detail="Error al obtener estadísticas"
-        )
+    except Exception as exc:
+        logger.exception("Error obteniendo estadísticas")
+        raise HTTPException(status_code=500, detail="Error al obtener estadísticas") from exc
 
 
 @router.post("/upload", response_model=UploadResponse)
@@ -242,333 +172,212 @@ async def upload_document(
     background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
     collection: str = Form("procedimientos"),
-    auto_process: bool = Form(True)
+    auto_process: bool = Form(True),
 ):
-    """
-    Sube y opcionalmente procesa un documento para indexación.
+    _validate_collection(collection)
 
-    - file: Archivo a subir (PDF, DOCX, TXT, MD)
-    - collection: Colección donde indexar (procedimientos, materiales, etc.)
-    - auto_process: Si procesar automáticamente después de subir
-    """
-    try:
-        # Generar ID único para el archivo
-        file_id = str(uuid.uuid4())
-
-        # Validar tipo de archivo
-        if not DocumentParser.can_parse(file.filename):
-            raise HTTPException(
-                status_code=400,
-                detail=f"Formato no soportado: {Path(file.filename).suffix}. Formatos permitidos: {', '.join(DocumentParser.SUPPORTED_FORMATS.keys())}"
-            )
-
-        # Determinar directorio de destino basado en tipo
-        file_format = DocumentParser.get_format(file.filename)
-        upload_dir = Path(f"uploads/{_storage_dir_for_format(file_format)}")
-        upload_dir.mkdir(parents=True, exist_ok=True)
-
-        # Guardar archivo
-        file_path = upload_dir / f"{file_id}_{file.filename}"
-        with open(file_path, "wb") as buffer:
-            shutil.copyfileobj(file.file, buffer)
-
-        logger.info(f"Archivo subido: {file.filename} -> {file_path}")
-
-        response_data = {
-            "file_id": file_id,
-            "file_name": file.filename,
-            "file_format": file_format,
-            "file_size": file_path.stat().st_size,
-            "status": "uploaded",
-            "message": "Archivo subido exitosamente",
-        }
-
-        # Procesar automáticamente si se solicita
-        if auto_process:
-            try:
-                # Ejecutar procesamiento en background
-                background_tasks.add_task(
-                    process_document_background,
-                    str(file_path),
-                    collection,
-                    file_id,
-                    file.filename
-                )
-
-                response_data["status"] = "processing"
-                response_data["message"] = "Archivo subido y procesamiento iniciado"
-
-            except Exception as e:
-                logger.error(f"Error iniciando procesamiento automático: {e}")
-                response_data["message"] += ". Error en procesamiento automático."
-
-        return UploadResponse(**response_data)
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Error subiendo archivo: {e}")
+    if not file.filename or not DocumentParser.can_parse(file.filename):
         raise HTTPException(
-            status_code=500,
-            detail=f"Error interno del servidor: {str(e)}"
+            status_code=400,
+            detail=(
+                f"Formato no soportado: {Path(file.filename or '').suffix}. "
+                f"Permitidos: {', '.join(DocumentParser.SUPPORTED_FORMATS.keys())}"
+            ),
         )
+
+    data = await file.read()
+    _validate_size(len(data))
+
+    sha256 = hashlib.sha256(data).hexdigest()
+    store = get_store()
+    existing = store.find_by_sha(sha256)
+    if existing and existing.status == IngestionStatus.READY:
+        return UploadResponse(
+            file_id=existing.file_id,
+            file_name=existing.filename,
+            file_format=existing.file_format,
+            file_size=existing.size_bytes,
+            status="duplicate",
+            message="Documento ya indexado (mismo SHA-256)",
+            sha256=sha256,
+        )
+
+    file_id = sha256[:16]
+    file_format = DocumentParser.get_format(file.filename)
+    upload_dir = Path(settings.UPLOAD_DIR) / _storage_dir_for_format(file_format)
+    upload_dir.mkdir(parents=True, exist_ok=True)
+    storage_path = upload_dir / f"{file_id}__{file.filename}"
+    storage_path.write_bytes(data)
+
+    from core.ingestion.models import IngestionRecord
+
+    record = IngestionRecord(
+        file_id=file_id,
+        sha256=sha256,
+        filename=file.filename,
+        mime=file.content_type or "application/octet-stream",
+        file_format=file_format,
+        size_bytes=len(data),
+        collection=collection,
+        storage_path=str(storage_path),
+    )
+    store.upsert(record)
+
+    if auto_process:
+        background_tasks.add_task(process_document_background, file_id)
+
+    return UploadResponse(
+        file_id=file_id,
+        file_name=file.filename,
+        file_format=file_format,
+        file_size=len(data),
+        status="processing" if auto_process else "uploaded",
+        message="Subida OK y procesamiento en curso" if auto_process else "Subida OK",
+        sha256=sha256,
+    )
 
 
 @router.post("/process/{file_id}")
 async def process_document(
     file_id: str,
     request: ProcessDocumentRequest,
-    background_tasks: BackgroundTasks
+    background_tasks: BackgroundTasks,
 ):
-    """
-    Procesa un documento previamente subido para indexación.
-    """
-    try:
-        # Buscar el archivo en todas las carpetas de uploads
-        file_path = None
-        for upload_subdir in _upload_subdirs():
-            search_path = Path(f"uploads/{upload_subdir}")
-            if search_path.exists():
-                for file in search_path.glob(f"{file_id}_*"):
-                    file_path = file
-                    break
-            if file_path:
-                break
+    _validate_collection(request.collection)
+    store = get_store()
+    record = store.get(file_id)
+    if not record:
+        raise HTTPException(status_code=404, detail=f"file_id {file_id} no encontrado")
 
-        if not file_path:
-            raise HTTPException(
-                status_code=404,
-                detail=f"Archivo con ID {file_id} no encontrado"
+    if record.collection != request.collection:
+        store.transition(file_id, record.status, collection=request.collection)
+
+    background_tasks.add_task(process_document_background, file_id)
+    return {
+        "status": "processing_started",
+        "file_id": file_id,
+        "collection": request.collection,
+    }
+
+
+def process_document_background(file_id: str) -> None:
+    store = get_store()
+    record = store.get(file_id)
+    if not record:
+        logger.error("No existe registro de ingestión para %s", file_id)
+        return
+
+    if not record.storage_path or not Path(record.storage_path).exists():
+        store.transition(file_id, IngestionStatus.FAILED, error="Fichero físico no encontrado")
+        return
+
+    try:
+        store.transition(file_id, IngestionStatus.PARSING)
+        content, metadata = DocumentParser.parse_file(record.storage_path)
+
+        if metadata.get("ocr_used"):
+            store.transition(
+                file_id,
+                IngestionStatus.OCR,
+                ocr_used=True,
+                ocr_pages=metadata.get("ocr_pages"),
             )
 
-        # Ejecutar procesamiento en background
-        background_tasks.add_task(
-            process_document_background,
-            str(file_path),
-            request.collection,
+        store.transition(
             file_id,
-            file_path.name
+            IngestionStatus.CHUNKING,
+            pages=metadata.get("pages"),
+            word_count=metadata.get("word_count"),
+            char_count=metadata.get("char_count"),
+            parser=metadata.get("parser") or record.file_format,
         )
 
-        return {
-            "status": "processing_started",
-            "file_id": file_id,
-            "collection": request.collection,
-            "message": "Procesamiento de documento iniciado"
-        }
+        if not content.strip():
+            raise ValueError("Documento sin contenido extraíble")
 
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Error procesando documento {file_id}: {e}")
-        raise HTTPException(
-            status_code=500,
-            detail="Error interno del servidor"
-        )
-
-
-def process_document_background(
-    file_path: str,
-    collection: str,
-    file_id: str,
-    original_filename: str
-):
-    """
-    Función que se ejecuta en background para procesar documentos.
-    """
-    try:
-        logger.info(f"Iniciando procesamiento de {original_filename}")
-
-        # Parsear documento
-        content, metadata = DocumentParser.parse_file(file_path)
-
-        # Preparar metadata para indexación
-        doc_metadata = {
-            "source": "uploaded_document",
-            "file_id": file_id,
-            "original_filename": original_filename,
-            "upload_date": metadata["upload_date"],
-            "file_format": metadata["file_format"],
-            "word_count": metadata.get("word_count", 0),
-            "char_count": metadata.get("char_count", 0),
-            "pages": metadata.get("pages", 1),
-            "ocr_used": metadata.get("ocr_used", False),
-        }
-
-        # Indexar el texto ya parseado. Esto soporta PDF, DOCX y OCR.
+        store.transition(file_id, IngestionStatus.INDEXING)
         chunks_created = indexer.index_text_content(
             content=content,
-            collection=collection,
-            metadata=doc_metadata,
-            source_name=original_filename,
+            collection=record.collection,
+            metadata={
+                "source": "uploaded_document",
+                "file_id": file_id,
+                "sha256": record.sha256,
+                "original_filename": record.filename,
+                "file_format": record.file_format,
+                "pages": metadata.get("pages"),
+                "ocr_used": metadata.get("ocr_used", False),
+                "word_count": metadata.get("word_count", 0),
+                "char_count": metadata.get("char_count", 0),
+            },
+            source_name=record.filename,
         )
-
-        # Mover a carpeta processed
-        processed_dir = Path("uploads/processed")
-        processed_dir.mkdir(parents=True, exist_ok=True)
-
-        processed_path = processed_dir / f"{file_id}_{original_filename}"
-        Path(file_path).rename(processed_path)
-
-        logger.info(f"Documento procesado exitosamente: {original_filename} ({chunks_created} chunks)")
-
-    except Exception as e:
-        logger.error(f"Error procesando documento {original_filename}: {e}")
-
-        # Mover a carpeta de errores si existe
-        error_dir = Path("uploads/errors")
-        error_dir.mkdir(parents=True, exist_ok=True)
-        error_path = error_dir / f"{file_id}_{original_filename}"
-        try:
-            Path(file_path).rename(error_path)
-        except:
-            pass
+        store.transition(file_id, IngestionStatus.READY, chunks=chunks_created)
+    except Exception as exc:
+        logger.exception("Fallo en ingesta %s", file_id)
+        store.transition(file_id, IngestionStatus.FAILED, error=str(exc)[:500])
 
 
 @router.get("/documents")
-async def list_documents():
-    """
-    Lista todos los documentos subidos y su estado.
-    """
-    try:
-        documents = []
+async def list_documents(
+    status: IngestionStatus | None = None,
+    collection: str | None = None,
+):
+    if collection:
+        _validate_collection(collection)
 
-        # Recorrer todas las carpetas de uploads
-        for status_dir in _upload_subdirs():
-            upload_dir = Path(f"uploads/{status_dir}")
-            if not upload_dir.exists():
-                continue
+    records = get_store().list(status=status, collection=collection)
+    return {
+        "documents": [record.model_dump(mode="json") for record in records],
+        "total": len(records),
+    }
 
-            for file_path in upload_dir.glob("*"):
-                if file_path.is_file():
-                    # Extraer información del nombre del archivo
-                    file_name = file_path.name
-                    if "_" in file_name:
-                        file_id, original_name = file_name.split("_", 1)
-                    else:
-                        file_id = str(uuid.uuid4())
-                        original_name = file_name
 
-                    # Obtener metadatos básicos
-                    stat = file_path.stat()
-
-                    doc_info = {
-                        "file_id": file_id,
-                        "file_name": original_name,
-                        "file_format": DocumentParser.get_format(str(file_path)),
-                        "file_size": stat.st_size,
-                        "upload_date": datetime.fromtimestamp(stat.st_mtime).isoformat(),
-                        "status": status_dir,
-                        "word_count": None,
-                        "char_count": None,
-                        "pages": None
-                    }
-
-                    documents.append(doc_info)
-
-        return {
-            "documents": documents,
-            "total": len(documents)
-        }
-
-    except Exception as e:
-        logger.error(f"Error listando documentos: {e}")
-        raise HTTPException(
-            status_code=500,
-            detail="Error interno del servidor"
-        )
+@router.get("/documents/{file_id}/status")
+async def document_status(file_id: str):
+    record = get_store().get(file_id)
+    if not record:
+        raise HTTPException(status_code=404, detail=f"file_id {file_id} no encontrado")
+    return record.model_dump(mode="json")
 
 
 @router.delete("/documents/{file_id}")
 async def delete_document(file_id: str):
-    """
-    Elimina un documento subido.
-    """
-    try:
-        # Buscar el archivo en todas las carpetas
-        file_path = None
-        for upload_subdir in _upload_subdirs():
-            search_path = Path(f"uploads/{upload_subdir}")
-            if search_path.exists():
-                for file in search_path.glob(f"{file_id}_*"):
-                    file_path = file
-                    break
-            if file_path:
-                break
+    store = get_store()
+    record = store.get(file_id)
+    if not record:
+        raise HTTPException(status_code=404, detail=f"file_id {file_id} no encontrado")
 
-        if not file_path:
-            raise HTTPException(
-                status_code=404,
-                detail=f"Documento con ID {file_id} no encontrado"
-            )
+    if record.storage_path:
+        Path(record.storage_path).unlink(missing_ok=True)
 
-        # Eliminar archivo
-        file_path.unlink()
-
-        logger.info(f"Documento eliminado: {file_path.name}")
-
-        return {
-            "status": "deleted",
-            "file_id": file_id,
-            "message": "Documento eliminado exitosamente"
-        }
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Error eliminando documento {file_id}: {e}")
-        raise HTTPException(
-            status_code=500,
-            detail="Error interno del servidor"
-        )
+    store.delete(file_id)
+    return {"status": "deleted", "file_id": file_id}
 
 
 @router.post("/reindex")
 async def reindex_knowledge_base(background_tasks: BackgroundTasks):
-    """
-    Reindexa toda la base de conocimientos desde archivos.
-    Operación pesada que se ejecuta en background.
-    """
     try:
-        # Ejecutar en background
         background_tasks.add_task(indexer.index_knowledge_base)
-
-        return {
-            "status": "reindexing_started",
-            "message": "Reindexación iniciada en background. Puede tomar varios minutos."
-        }
-
-    except Exception as e:
-        logger.error(f"Error iniciando reindexación: {e}")
-        raise HTTPException(
-            status_code=500,
-            detail="Error al iniciar la reindexación"
-        )
+        return {"status": "reindexing_started"}
+    except Exception as exc:
+        logger.exception("Error iniciando reindexación")
+        raise HTTPException(status_code=500, detail="Error al iniciar la reindexación") from exc
 
 
 @router.get("/health")
 async def knowledge_health_check():
-    """Verificación de salud del servicio de conocimiento."""
     try:
-        # Verificar que los servicios están activos
-        collections_status = {}
-        for coll_name in ["procedimientos", "aprendido"]:
-            try:
-                # Intento simple de acceso
-                collections_status[coll_name] = "active"
-            except:
-                collections_status[coll_name] = "inactive"
-
         return {
             "status": "healthy",
             "service": "knowledge",
-            "collections_status": collections_status
+            "ingestion_counts": get_store().count_by_status(),
+            "supabase": "enabled" if settings.supabase_enabled else "degraded",
         }
-
-    except Exception as e:
-        logger.error(f"Error en health check: {e}")
+    except Exception as exc:
+        logger.exception("Error en health check")
         return {
             "status": "unhealthy",
             "service": "knowledge",
-            "error": str(e)
+            "error": str(exc),
         }

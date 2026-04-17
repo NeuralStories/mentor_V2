@@ -1,23 +1,26 @@
 """
-Parsers de documentos para la zona de ingesta.
-Soporta PDF, DOCX, TXT y MD con metadata extraida.
+Parser unificado de documentos para la zona de ingesta.
 """
+from __future__ import annotations
+
 import logging
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, Tuple
 
-from PyPDF2 import PdfReader
-from PyPDF2.errors import PdfReadError
-from docx import Document
-from docx.opc.exceptions import PackageNotFoundError
-
 from core.config import settings
 
 try:
-    import fitz  # PyMuPDF
+    import fitz
 except Exception:
     fitz = None
+
+try:
+    from docx import Document as DocxDocument
+    from docx.opc.exceptions import PackageNotFoundError
+except Exception:
+    DocxDocument = None
+    PackageNotFoundError = Exception
 
 try:
     import pytesseract
@@ -25,19 +28,19 @@ except Exception:
     pytesseract = None
 
 try:
-    from PIL import Image
+    from PIL import Image, ImageFilter, ImageOps
 except Exception:
     Image = None
+    ImageFilter = None
+    ImageOps = None
 
 logger = logging.getLogger(__name__)
 
+_PAGE_TEXT_MIN_CHARS = 30
+_OCR_ZOOM = 2.5
+
 
 class DocumentParser:
-    """
-    Parser unificado para multiples formatos de documento.
-    Extrae texto y metadata de archivos.
-    """
-
     SUPPORTED_FORMATS = {
         ".pdf": "pdf",
         ".docx": "docx",
@@ -54,160 +57,178 @@ class DocumentParser:
         return DocumentParser.SUPPORTED_FORMATS.get(Path(file_path).suffix.lower(), "unknown")
 
     @staticmethod
-    def parse_file(file_path: str) -> Tuple[str, Dict[str, Any]]:
-        file_path = Path(file_path)
-
-        if not file_path.exists():
-            raise FileNotFoundError(f"Archivo no encontrado: {file_path}")
-
-        if not DocumentParser.can_parse(str(file_path)):
-            raise ValueError(f"Formato no soportado: {file_path.suffix}")
-
-        format_type = DocumentParser.get_format(str(file_path))
-        metadata: Dict[str, Any] = {
-            "file_name": file_path.name,
-            "file_path": str(file_path),
-            "file_size": file_path.stat().st_size,
-            "file_format": format_type,
-            "upload_date": datetime.now().isoformat(),
-            "pages": 1,
-            "word_count": 0,
-            "char_count": 0,
-            "ocr_used": False,
-        }
-
-        try:
-            if format_type == "pdf":
-                content, pdf_metadata = DocumentParser._parse_pdf(file_path)
-                metadata.update(pdf_metadata)
-            elif format_type == "docx":
-                content, docx_metadata = DocumentParser._parse_docx(file_path)
-                metadata.update(docx_metadata)
-            elif format_type == "txt":
-                content = DocumentParser._parse_txt(file_path)
-            elif format_type == "markdown":
-                content = DocumentParser._parse_markdown(file_path)
-            else:
-                raise ValueError(f"Parser no implementado para: {format_type}")
-
-            metadata["word_count"] = len(content.split())
-            metadata["char_count"] = len(content)
-            logger.info(f"Documento parseado: {file_path.name} ({len(content)} caracteres)")
-            return content, metadata
-        except Exception as e:
-            logger.error(f"Error parseando {file_path}: {e}")
-            raise
-
-    @staticmethod
-    def _parse_pdf(file_path: Path) -> Tuple[str, Dict[str, Any]]:
-        try:
-            reader = PdfReader(str(file_path))
-            pdf_info = reader.metadata
-            metadata: Dict[str, Any] = {
-                "pages": len(reader.pages),
-                "title": pdf_info.title if pdf_info and pdf_info.title else None,
-                "author": pdf_info.author if pdf_info and pdf_info.author else None,
-                "subject": pdf_info.subject if pdf_info and pdf_info.subject else None,
-                "creator": pdf_info.creator if pdf_info and pdf_info.creator else None,
-                "ocr_used": False,
-            }
-
-            content_parts = []
-            for page in reader.pages:
-                page_text = page.extract_text() or ""
-                if page_text.strip():
-                    content_parts.append(page_text.strip())
-
-            content = "\n\n".join(content_parts)
-            if not content.strip() and settings.OCR_ENABLED:
-                content = DocumentParser._ocr_pdf(file_path)
-                metadata["ocr_used"] = bool(content.strip())
-
-            return content.strip(), metadata
-        except PdfReadError as e:
-            raise ValueError(f"Error leyendo PDF: {e}")
-
-    @staticmethod
-    def _parse_docx(file_path: Path) -> Tuple[str, Dict[str, Any]]:
-        try:
-            doc = Document(str(file_path))
-            metadata = {"pages": 1}
-            content_parts = []
-
-            for paragraph in doc.paragraphs:
-                if paragraph.text.strip():
-                    content_parts.append(paragraph.text.strip())
-
-            for table in doc.tables:
-                for row in table.rows:
-                    row_text = [cell.text.strip() for cell in row.cells if cell.text.strip()]
-                    if row_text:
-                        content_parts.append(" | ".join(row_text))
-
-            return "\n".join(content_parts).strip(), metadata
-        except PackageNotFoundError:
-            raise ValueError("Error leyendo DOCX: archivo corrupto o no valido")
-
-    @staticmethod
-    def _parse_txt(file_path: Path) -> str:
-        try:
-            with open(file_path, "r", encoding="utf-8") as f:
-                return f.read()
-        except UnicodeDecodeError:
-            for encoding in ["latin-1", "cp1252", "iso-8859-1"]:
-                try:
-                    with open(file_path, "r", encoding=encoding) as f:
-                        return f.read()
-                except UnicodeDecodeError:
-                    continue
-            raise ValueError("No se pudo decodificar el archivo de texto")
-
-    @staticmethod
-    def _parse_markdown(file_path: Path) -> str:
-        return DocumentParser._parse_txt(file_path)
-
-    @staticmethod
-    def _ocr_pdf(file_path: Path) -> str:
-        if not settings.OCR_ENABLED:
-            return ""
-        if fitz is None or pytesseract is None or Image is None:
-            logger.warning("OCR habilitado pero faltan dependencias opcionales")
-            return ""
-
-        if settings.TESSERACT_CMD:
-            pytesseract.pytesseract.tesseract_cmd = settings.TESSERACT_CMD
-
-        try:
-            doc = fitz.open(str(file_path))
-            text_parts = []
-            for page in doc:
-                pix = page.get_pixmap(matrix=fitz.Matrix(2, 2), alpha=False)
-                image = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
-                page_text = pytesseract.image_to_string(image, lang=settings.OCR_LANGUAGE)
-                if page_text.strip():
-                    text_parts.append(page_text.strip())
-            return "\n\n".join(text_parts)
-        except Exception as e:
-            logger.warning(f"OCR no disponible para {file_path.name}: {e}")
-            return ""
-
-    @staticmethod
-    def validate_file(file_path: str, max_size_mb: int = 50) -> Tuple[bool, str]:
+    def validate_file(file_path: str, max_size_mb: int | None = None) -> Tuple[bool, str]:
         try:
             path = Path(file_path)
             if not path.exists():
                 return False, "Archivo no encontrado"
-
-            size_mb = path.stat().st_size / (1024 * 1024)
-            if size_mb > max_size_mb:
-                return False, f"Archivo demasiado grande ({size_mb:.1f}MB > {max_size_mb}MB)"
-
-            if not DocumentParser.can_parse(file_path):
-                return False, f"Formato no soportado: {path.suffix}"
-
             if path.stat().st_size == 0:
                 return False, "Archivo vacio"
+            if not DocumentParser.can_parse(str(path)):
+                return False, f"Formato no soportado: {path.suffix}"
 
+            limit_mb = max_size_mb if max_size_mb is not None else settings.MAX_UPLOAD_SIZE_MB
+            size_mb = path.stat().st_size / (1024 * 1024)
+            if size_mb > limit_mb:
+                return False, f"Archivo demasiado grande ({size_mb:.1f}MB > {limit_mb}MB)"
             return True, "Archivo valido"
-        except Exception as e:
-            return False, f"Error validando archivo: {e}"
+        except Exception as exc:
+            return False, f"Error validando archivo: {exc}"
+
+    @staticmethod
+    def parse_file(file_path: str | Path) -> Tuple[str, Dict[str, Any]]:
+        path = Path(file_path)
+        if not path.exists():
+            raise FileNotFoundError(f"Archivo no encontrado: {path}")
+        if not DocumentParser.can_parse(str(path)):
+            raise ValueError(f"Formato no soportado: {path.suffix}")
+
+        file_format = DocumentParser.get_format(str(path))
+        metadata: Dict[str, Any] = {
+            "file_name": path.name,
+            "file_path": str(path),
+            "file_size": path.stat().st_size,
+            "file_format": file_format,
+            "upload_date": datetime.utcnow().isoformat(),
+            "pages": 1,
+            "word_count": 0,
+            "char_count": 0,
+            "parser": file_format,
+            "ocr_used": False,
+            "ocr_pages": 0,
+        }
+
+        if file_format == "pdf":
+            content, extra = DocumentParser._parse_pdf(path)
+        elif file_format == "docx":
+            content, extra = DocumentParser._parse_docx(path)
+        elif file_format == "txt":
+            content, extra = DocumentParser._parse_txt(path), {}
+        elif file_format == "markdown":
+            content, extra = DocumentParser._parse_txt(path), {"parser": "markdown"}
+        else:
+            raise ValueError(f"Parser no implementado para: {file_format}")
+
+        metadata.update(extra)
+        metadata["word_count"] = len(content.split())
+        metadata["char_count"] = len(content)
+        return content, metadata
+
+    @staticmethod
+    def _parse_pdf(path: Path) -> Tuple[str, Dict[str, Any]]:
+        if fitz is None:
+            raise RuntimeError("PyMuPDF no está instalado")
+
+        parts: list[str] = []
+        ocr_pages = 0
+        with fitz.open(str(path)) as document:
+            pdf_meta = document.metadata or {}
+            total_pages = len(document)
+
+            for page in document:
+                text = (page.get_text("text") or "").strip()
+                if len(text) >= _PAGE_TEXT_MIN_CHARS:
+                    parts.append(text)
+                    continue
+
+                if settings.OCR_ENABLED and DocumentParser._ocr_available():
+                    ocr_text = DocumentParser._ocr_page(page)
+                    if ocr_text.strip():
+                        parts.append(ocr_text.strip())
+                        ocr_pages += 1
+                elif text:
+                    parts.append(text)
+
+        ocr_used = ocr_pages > 0
+        if ocr_used and ocr_pages == total_pages:
+            parser_name = "tesseract"
+        elif ocr_used:
+            parser_name = "pymupdf+ocr"
+        else:
+            parser_name = "pymupdf"
+
+        return "\n\n".join(part for part in parts if part).strip(), {
+            "pages": total_pages,
+            "parser": parser_name,
+            "ocr_used": ocr_used,
+            "ocr_pages": ocr_pages,
+            "title": pdf_meta.get("title") or None,
+            "author": pdf_meta.get("author") or None,
+            "subject": pdf_meta.get("subject") or None,
+            "creator": pdf_meta.get("creator") or None,
+        }
+
+    @staticmethod
+    def _ocr_available() -> bool:
+        if pytesseract is None or Image is None:
+            logger.warning("OCR habilitado pero faltan dependencias opcionales")
+            return False
+        if settings.TESSERACT_CMD:
+            pytesseract.pytesseract.tesseract_cmd = settings.TESSERACT_CMD
+        return True
+
+    @staticmethod
+    def _ocr_page(page) -> str:
+        try:
+            pixmap = page.get_pixmap(matrix=fitz.Matrix(_OCR_ZOOM, _OCR_ZOOM), alpha=False)
+            image = Image.frombytes("RGB", [pixmap.width, pixmap.height], pixmap.samples)
+            image = DocumentParser._preprocess_for_ocr(image)
+            return pytesseract.image_to_string(
+                image,
+                lang=settings.OCR_LANGUAGE,
+                config="--oem 3 --psm 3",
+            )
+        except Exception as exc:
+            logger.warning("OCR falló en página: %s", exc)
+            return ""
+
+    @staticmethod
+    def _preprocess_for_ocr(image):
+        if ImageOps is None:
+            return image
+        image = ImageOps.grayscale(image)
+        image = ImageOps.autocontrast(image)
+        if ImageFilter is not None:
+            image = image.filter(ImageFilter.MedianFilter(size=3))
+        return image
+
+    @staticmethod
+    def _parse_docx(path: Path) -> Tuple[str, Dict[str, Any]]:
+        if DocxDocument is None:
+            raise RuntimeError("python-docx no está instalado")
+
+        try:
+            document = DocxDocument(str(path))
+        except PackageNotFoundError as exc:
+            raise ValueError("Error leyendo DOCX: archivo corrupto o no valido") from exc
+
+        parts: list[str] = []
+        for paragraph in document.paragraphs:
+            text = paragraph.text.strip()
+            if text:
+                parts.append(text)
+
+        for table in document.tables:
+            for row in table.rows:
+                cells = [cell.text.strip() for cell in row.cells if cell.text.strip()]
+                if cells:
+                    parts.append(" | ".join(cells))
+
+        core = getattr(document, "core_properties", None)
+        return "\n".join(parts).strip(), {
+            "parser": "docx",
+            "pages": 1,
+            "title": getattr(core, "title", None) if core else None,
+            "author": getattr(core, "author", None) if core else None,
+            "subject": getattr(core, "subject", None) if core else None,
+        }
+
+    @staticmethod
+    def _parse_txt(path: Path) -> str:
+        for encoding in ("utf-8", "utf-8-sig", "latin-1", "cp1252", "iso-8859-1"):
+            try:
+                with open(path, "r", encoding=encoding) as file_handle:
+                    return file_handle.read()
+            except UnicodeDecodeError:
+                continue
+        raise ValueError("No se pudo decodificar el archivo de texto")
