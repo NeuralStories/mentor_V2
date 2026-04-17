@@ -109,6 +109,9 @@ class LearningPipeline:
     def _store_knowledge(self, item: dict, conversation_id: str) -> str:
         """Guarda un item de conocimiento en Supabase."""
         knowledge_id = str(uuid.uuid4())
+        if self.client is None:
+            logger.info("Supabase no disponible: conocimiento no persistido")
+            return knowledge_id
         
         try:
             self.client.table("learned_knowledge").insert({
@@ -148,6 +151,8 @@ class LearningPipeline:
     def get_pending_validations(self) -> list[dict]:
         """Obtiene conocimiento pendiente de validar."""
         try:
+            if self.client is None:
+                return []
             result = (
                 self.client.table("learned_knowledge")
                 .select("*")
@@ -173,6 +178,9 @@ class LearningPipeline:
         status = "approved" if approved else "rejected"
         
         try:
+            if self.client is None:
+                logger.info("Supabase no disponible: validación omitida")
+                return
             # Actualizar estado
             self.client.table("learned_knowledge").update({
                 "validation_status": status,
@@ -209,6 +217,8 @@ class LearningPipeline:
     def get_learning_stats(self) -> dict:
         """Estadísticas del sistema de aprendizaje."""
         try:
+            if self.client is None:
+                return {"total": 0, "approved": 0, "pending": 0, "rejected": 0}
             total = self.client.table("learned_knowledge")\
                 .select("id", count="exact").execute()
             approved = self.client.table("learned_knowledge")\

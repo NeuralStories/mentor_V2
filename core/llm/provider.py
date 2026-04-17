@@ -7,11 +7,9 @@ Modelos usados:
 
 Ambos se ejecutan localmente via Ollama.
 """
-from langchain_community.llms import Ollama
-from langchain_community.chat_models import ChatOllama
-from langchain_community.embeddings import OllamaEmbeddings
 from langchain_core.language_models import BaseLLM, BaseChatModel
 from langchain_core.embeddings import Embeddings
+from langchain_ollama import ChatOllama, OllamaEmbeddings, OllamaLLM
 from core.config import settings
 import httpx
 import logging
@@ -48,7 +46,7 @@ class LLMProvider:
     def get_fast_llm(cls) -> BaseLLM:
         """LLM rápido para clasificación y extracción (Ollama directo)."""
         if cls._fast_llm is None:
-            cls._fast_llm = Ollama(
+            cls._fast_llm = OllamaLLM(
                 base_url=settings.OLLAMA_BASE_URL,
                 model=settings.LLM_MODEL,
                 temperature=0.1,

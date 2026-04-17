@@ -13,9 +13,10 @@ class Settings(BaseSettings):
     )
     
     # Supabase
-    SUPABASE_URL: str  # URL del proyecto Supabase
-    SUPABASE_KEY: str  # anon key
-    SUPABASE_SERVICE_KEY: str  # service_role key (para operaciones admin)
+    SUPABASE_URL: str | None = None
+    SUPABASE_KEY: str | None = None
+    SUPABASE_SERVICE_KEY: str | None = None
+    SUPABASE_REQUIRED: bool = False
     
     # LLM - Ollama (local, gratuito)
     OLLAMA_BASE_URL: str = "http://localhost:11434"
@@ -51,6 +52,22 @@ class Settings(BaseSettings):
     
     # Knowledge Base
     KNOWLEDGE_BASE_PATH: str = "./knowledge_base"
+
+    # Ingestion
+    UPLOAD_DIR: str = "./uploads"
+    INGESTION_DB_PATH: str = "./data/ingestion.sqlite"
+    MAX_UPLOAD_SIZE_MB: int = 50
+
+    # CORS
+    CORS_ORIGINS: str = "http://localhost:8766,http://127.0.0.1:8766"
+
+    @property
+    def supabase_enabled(self) -> bool:
+        return bool(self.SUPABASE_URL and self.SUPABASE_KEY)
+
+    @property
+    def cors_origin_list(self) -> list[str]:
+        return [origin.strip() for origin in self.CORS_ORIGINS.split(",") if origin.strip()]
     
     @field_validator("APP_DEBUG", mode="before")
     @classmethod
@@ -78,6 +95,17 @@ class Settings(BaseSettings):
         normalized = str(value).strip().lower()
         return normalized in {"1", "true", "yes", "on", "enabled"}
 
+    @field_validator("SUPABASE_REQUIRED", mode="before")
+    @classmethod
+    def normalize_supabase_required(cls, value):
+        if isinstance(value, bool):
+            return value
+        if value is None:
+            return False
+
+        normalized = str(value).strip().lower()
+        return normalized in {"1", "true", "yes", "on", "required"}
+
     model_config = SettingsConfigDict(
         env_file=".env",
         extra="ignore",
@@ -85,3 +113,8 @@ class Settings(BaseSettings):
 
 
 settings = Settings()
+
+if settings.SUPABASE_REQUIRED and not settings.supabase_enabled:
+    raise RuntimeError(
+        "SUPABASE_REQUIRED=true pero faltan SUPABASE_URL/SUPABASE_KEY."
+    )

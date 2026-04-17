@@ -7,6 +7,7 @@ from pydantic import BaseModel
 from typing import Dict, Any, List, Optional
 from core.memory.learning_pipeline import LearningPipeline
 from core.llm.provider import LLMProvider
+from core.config import settings
 import logging
 
 logger = logging.getLogger(__name__)
@@ -158,18 +159,24 @@ async def get_system_health():
             }
 
         # Verificar base de datos
-        try:
-            # Simple query de prueba
-            test_result = learning.client.table("conversations").select("id").limit(1).execute()
+        if learning.client is None:
             health_status["components"]["database"] = {
-                "status": "healthy",
-                "test_query": "success"
+                "status": "degraded",
+                "mode": "local_only",
+                "supabase_enabled": settings.supabase_enabled,
             }
-        except Exception as e:
-            health_status["components"]["database"] = {
-                "status": "error",
-                "error": str(e)
-            }
+        else:
+            try:
+                learning.client.table("conversations").select("id").limit(1).execute()
+                health_status["components"]["database"] = {
+                    "status": "healthy",
+                    "test_query": "success"
+                }
+            except Exception as e:
+                health_status["components"]["database"] = {
+                    "status": "error",
+                    "error": str(e)
+                }
 
         # Determinar estado general
         component_statuses = [comp["status"] for comp in health_status["components"].values()]

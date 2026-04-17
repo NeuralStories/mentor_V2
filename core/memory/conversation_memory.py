@@ -46,7 +46,11 @@ class ConversationMemory:
             "context": context or {},
             "sources_used": sources_used or [],
         }
-        
+
+        if self.client is None:
+            logger.info("Supabase no disponible: conversación no persistida")
+            return record_id
+
         try:
             self.client.table("conversations").insert(data).execute()
             logger.info(f"Conversación guardada: {record_id}")
@@ -66,6 +70,8 @@ class ConversationMemory:
         (formato compatible con LangChain messages).
         """
         try:
+            if self.client is None:
+                return []
             result = (
                 self.client.table("conversations")
                 .select("user_message, assistant_response, created_at")
@@ -100,6 +106,8 @@ class ConversationMemory:
     ):
         """Guarda feedback del usuario sobre una respuesta."""
         try:
+            if self.client is None:
+                return
             self.client.table("feedback").insert({
                 "conversation_id": conversation_id,
                 "is_positive": is_positive,
@@ -122,6 +130,9 @@ class ConversationMemory:
         incident_id = str(uuid.uuid4())
         
         try:
+            if self.client is None:
+                logger.info("Supabase no disponible: incidencia no persistida")
+                return incident_id
             self.client.table("incidents").insert({
                 "id": incident_id,
                 "reported_by": reported_by,
