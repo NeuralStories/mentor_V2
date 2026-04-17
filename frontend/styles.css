@@ -770,6 +770,31 @@ body {
 .status-processed { background: var(--success-color); color: white; }
 .status-error { background: var(--accent-color); color: white; }
 
+.system-banner {
+    padding: 0.75rem 1rem;
+    border-radius: var(--border-radius);
+    margin-bottom: 1rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.document-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    padding: 0.2rem 0.5rem;
+    border-radius: 999px;
+    background: rgba(52, 152, 219, 0.12);
+    color: var(--primary-color);
+    font-size: 0.8rem;
+}
+
+.document-chip-error {
+    background: rgba(231, 76, 60, 0.12);
+    color: var(--accent-color);
+}
+
 .btn-action {
     padding: 0.5rem;
     border: none;
