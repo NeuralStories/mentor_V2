@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#2c3e50">
+    <meta name="description" content="Asistente de IA avanzado para mentoría técnica y educativa">
+    <title>Mentor by EgeAI</title>
+
+    <!-- PWA Manifest -->
+    <link rel="manifest" href="manifest.json">
+
+    <!-- Favicon -->
+    <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
+    <link rel="apple-touch-icon" sizes="180x180" href="icon-180.png">
+
+    <!-- CSS -->
+    <link rel="stylesheet" href="styles.css">
+
+    <!-- Font Awesome para iconos -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+</head>
+<body>
+    <!-- Header -->
+    <header class="app-header">
+        <div class="header-content">
+            <i class="fas fa-tools"></i>
+            <h1>Mentor by EgeAI</h1>
+            <span class="status-indicator" id="connectionStatus">
+                <i class="fas fa-circle"></i>
+                Conectado
+            </span>
+        </div>
+    </header>
+
+    <!-- Main Chat Area -->
+    <main class="chat-container">
+        <!-- Welcome Message -->
+        <div class="welcome-message">
+            <div class="welcome-content">
+                <i class="fas fa-hammer welcome-icon"></i>
+                <h2>¡Hola! Soy Mentor by EgeAI</h2>
+                <p>Puedo ayudarte con:</p>
+                <div class="capabilities">
+                    <span class="capability-tag"><i class="fas fa-graduation-cap"></i> Mentoría técnica</span>
+                    <span class="capability-tag"><i class="fas fa-brain"></i> Aprendizaje adaptativo</span>
+                    <span class="capability-tag"><i class="fas fa-search"></i> Consultas especializadas</span>
+                    <span class="capability-tag"><i class="fas fa-lightbulb"></i> Solución de problemas</span>
+                </div>
+                <p class="start-message">Haz tu primera pregunta para comenzar</p>
+            </div>
+        </div>
+
+        <!-- Chat Messages -->
+        <div class="chat-messages" id="chatMessages">
+            <!-- Messages will be inserted here -->
+        </div>
+
+        <!-- Typing Indicator -->
+        <div class="typing-indicator" id="typingIndicator" style="display: none;">
+            <div class="typing-dots">
+                <span></span>
+                <span></span>
+                <span></span>
+            </div>
+            <span>Mentor está pensando...</span>
+        </div>
+    </main>
+
+    <!-- Admin Panel -->
+    <div class="admin-panel" id="adminPanel" style="display: none;">
+        <div class="admin-header">
+            <h3><i class="fas fa-upload"></i> Zona de Ingesta de Conocimiento</h3>
+            <button id="closeAdmin" class="close-admin">&times;</button>
+        </div>
+
+        <div class="admin-content">
+            <!-- File Upload Section -->
+            <div class="upload-section">
+                <h4>Subir Documentos</h4>
+                <div class="upload-area" id="uploadArea">
+                    <div class="upload-content">
+                        <i class="fas fa-cloud-upload-alt upload-icon"></i>
+                        <p>Arrastra archivos aquí o haz clic para seleccionar</p>
+                        <p class="upload-formats">Formatos soportados: PDF, DOCX, TXT, MD</p>
+                        <input type="file" id="fileInput" multiple accept=".pdf,.docx,.txt,.md" style="display: none;">
+                        <button id="selectFilesBtn" class="btn-primary">Seleccionar Archivos</button>
+                    </div>
+                </div>
+
+                <div class="upload-options">
+                    <label>
+                        <input type="checkbox" id="autoProcess" checked>
+                        Procesar automáticamente
+                    </label>
+                    <select id="uploadCollection">
+                        <option value="procedimientos">Procedimientos</option>
+                        <option value="materiales">Materiales</option>
+                        <option value="problemas_soluciones">Problemas y Soluciones</option>
+                        <option value="aprendido">Conocimiento Aprendido</option>
+                    </select>
+                </div>
+
+                <div class="upload-queue" id="uploadQueue" style="display: none;">
+                    <h5>Archivos en cola:</h5>
+                    <div id="queueList"></div>
+                    <button id="processQueueBtn" class="btn-success" disabled>Procesar Archivos</button>
+                </div>
+            </div>
+
+            <!-- Documents Management Section -->
+            <div class="documents-section">
+                <h4>Documentos Subidos</h4>
+                <button id="refreshDocsBtn" class="btn-secondary">
+                    <i class="fas fa-sync"></i> Actualizar
+                </button>
+
+                <div class="documents-list" id="documentsList">
+                    <div class="loading">Cargando documentos...</div>
+                </div>
+            </div>
+
+            <!-- System Actions -->
+            <div class="system-actions">
+                <h4>Acciones del Sistema</h4>
+                <button id="reindexBtn" class="btn-warning">
+                    <i class="fas fa-database"></i> Reindexar Base de Conocimiento
+                </button>
+                <button id="clearCacheBtn" class="btn-danger">
+                    <i class="fas fa-trash"></i> Limpiar Cache
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Input Area -->
+    <footer class="input-area">
+        <div class="input-container">
+            <div class="input-wrapper">
+                <textarea
+                    id="messageInput"
+                    placeholder="Describe tu problema o pregunta..."
+                    rows="1"
+                    maxlength="500"
+                ></textarea>
+                <button id="sendButton" class="send-button" disabled>
+                    <i class="fas fa-paper-plane"></i>
+                </button>
+            </div>
+
+            <!-- Quick Actions -->
+            <div class="quick-actions">
+                <button class="quick-action" data-action="diagnostico">
+                    <i class="fas fa-stethoscope"></i>
+                    Diagnosticar
+                </button>
+                <button class="quick-action" data-action="guia">
+                    <i class="fas fa-book"></i>
+                    Guía paso a paso
+                </button>
+                <button class="quick-action" data-action="consulta">
+                    <i class="fas fa-question-circle"></i>
+                    Consultar
+                </button>
+            </div>
+
+            <!-- User Role Selector -->
+            <div class="user-role-selector">
+                <label for="userRole">Soy:</label>
+                <select id="userRole">
+                    <option value="general">Trabajador general</option>
+                    <option value="instalador_puertas">Instalador de puertas</option>
+                    <option value="instalador_parquet">Instalador de parquet</option>
+                </select>
+            </div>
+
+            <!-- Admin Panel Toggle -->
+            <button id="adminToggle" class="admin-toggle" title="Panel de Administración">
+                <i class="fas fa-cog"></i>
+            </button>
+        </div>
+    </footer>
+
+    <!-- Modals/Dialogs -->
+    <div class="modal" id="errorModal" style="display: none;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3><i class="fas fa-exclamation-triangle"></i> Error</h3>
+                <button class="modal-close">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p id="errorMessage">Ha ocurrido un error inesperado.</p>
+            </div>
+            <div class="modal-footer">
+                <button class="modal-button primary" onclick="hideErrorModal()">Entendido</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- JavaScript -->
+    <script src="app.js"></script>
+</body>
+</html>
